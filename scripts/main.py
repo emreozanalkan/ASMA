@@ -51,10 +51,14 @@ def main():
         smach.StateMachine.add('Wel_come', Welc(),
                                transitions={'outcome1':'StartMe',
                                             'outcome2':'STOP'})
+        sis = smach_ros.IntrospectionServer('server_name', sm, '/SM_ROOT')
+        sis.start()
 
 
     # Execute SMACH plan
     outcome = sm.execute()
+    rospy.spin()
+    sis.stop()
 
 
 if __name__ == '__main__':

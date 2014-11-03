@@ -10,8 +10,9 @@
   <url>http://ros.org/wiki/asma</url>
   <depend package="roscpp"/>
   <depend package="sensor_msgs"/>
-  <depend package="geometry_msgs"/>
-
+  <depend package="smach"/>
+  <depend package="smach_ros"/>
+  <depend package="smach_msgs"/>
 </package>
 
 
