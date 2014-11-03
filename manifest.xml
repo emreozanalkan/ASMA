@@ -1,0 +1,17 @@
+<package>
+  <description brief="asma">
+
+     asma
+
+  </description>
+  <author>mscv5</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/asma</url>
+  <depend package="roscpp"/>
+  <depend package="sensor_msgs"/>
+  <depend package="geometry_msgs"/>
+
+</package>
+
+
