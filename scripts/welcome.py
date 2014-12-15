@@ -9,6 +9,7 @@ from sound_play.libsoundplay import SoundClient
 
 def wel(filename):
     #absolute path for this
+    print filename
     fileloc = str( str(os.path.dirname(__file__)) +'/'+ filename)
     f = open(fileloc, 'r')
     #rospy.init_node('say', anonymous = True)

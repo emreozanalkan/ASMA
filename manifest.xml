@@ -13,6 +13,15 @@
   <depend package="smach"/>
   <depend package="smach_ros"/>
   <depend package="smach_msgs"/>
+  <depend package="rospy"/>
+  <depend package="geometry_msgs"/>
+  <depend package="nav_msgs"/>
+  <depend package="move_base_msgs"/>
+  <depend package="visualization_msgs"/>
+  <depend package="tf"/>
+  <depend package="actionlib"/>
+  <depend package="kdl"/>
+  <depend package="dynamic_reconfigure"/>
 </package>
 
 
