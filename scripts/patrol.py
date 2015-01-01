@@ -20,14 +20,15 @@ from visualization_msgs.msg import Marker
 from sound_play.msg import SoundRequest
 from sound_play.libsoundplay import SoundClient
 from sensor_msgs.msg import Joy
-from face_recognition.msg import FaceRecognitionActionFeedback,FRClientGoal
+from face_recognition.msg import FaceRecognitionActionResult, FRClientGoal
+from std_msgs.msg import String
 import os
 import signal
 
-currTask = 1
+currTask = 1 #
 nextLoc  = 1
 p = rospy.Publisher('cmd_vel', Twist)
-
+#soundhandle = SoundClient()
 class StartRobot(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['StartPatrol'])
@@ -36,6 +37,14 @@ class StartRobot(smach.State):
         rospy.loginfo('Executing state Start Robot')
         rospy.sleep(1)
         #TODO: Give self explanation do somethign here like speak or move
+        speak('Hello, World! I am ASMA. It stands for Automatic Shopping Mall Assitant.')
+        rospy.sleep(4)
+        speak('I will be your guidance through your experience in this shopping mall')
+        rospy.sleep(2)
+        speak('I will be patrolling different locations and doing tasks for you.')
+        rospy.sleep(2)
+        speak('Please join me in this wonderful experience!')
+        rospy.sleep(2)
 
         return 'StartPatrol'
 
@@ -45,7 +54,8 @@ class StartPatrol(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo('Executing state Start Patrol')
-        rospy.sleep(1)
+        speak('Now I will start patrolling. Be carefull! Ha ha ha!')
+        rospy.sleep(3)
         #TODO: Implement patrolling here, like moving the next location, e.g to the 'nextLoc'
         return 'DetectTag'
 
@@ -54,11 +64,26 @@ class DetectTag(smach.State):
         smach.State.__init__(self, outcomes=['Task1','Task2','Task3','Task4','Error','FailDetectTag'])
 
     def detectARTag(self):
-        return 3 #currTask
+        twist = Twist()
+        twist.linear.x = 0
+        twist.linear.y = 0
+        twist.linear.z = 0
+        twist.angular.x = 0
+        twist.angular.y = 0
+        q_angle = quaternion_from_euler(0, 0, 0.175, axes='sxyz')
+        q = Quaternion(*q_angle)
+        twist.angular.z = 0.8
+        for i in range(115):
+            p.publish(twist)
+            print 'Rotating'
+            rospy.sleep(0.1)
+            print 'Current Task: ' + str(currTask)
+        return currTask
 
     def execute(self, userdata):
 
         rospy.loginfo('Executing state Detect Tag')
+        speak('Detecting tags!')
         rospy.sleep(1)
 
         val = self.detectARTag()
@@ -91,16 +116,20 @@ class FailDetectTag(smach.State):
 
 class Error(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['StartPatrol'])
+        smach.State.__init__(self, outcomes=['StartPatrol', 'STOP'])
 
     def informErrorDetected(self):
-        return
+        return 1
 
     def execute(self, userdata):
         rospy.loginfo('Executing '+ type(self).__name__)
         rospy.sleep(1)
-        self.informErrorDetected()
-        return 'StartPatrol'
+        errorCode = self.informErrorDetected()
+
+        if errorCode == 1:
+            return 'StartPatrol'
+        else:
+            return 'STOP'
 
 class TaskCompleted(smach.State):
     def __init__(self):
@@ -139,12 +168,49 @@ class TaskFailed(smach.State):
         return 'TaskCompleted'
 
 
-class Task1(smach.State):
+class Task2(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['TaskCompleted','TaskFailed','Error'])
+        self.np = 0
+    def callbackVoice(self,data):
+        print 'our data:' + data.data
+        if data.data is not None:
+            #speak('Going to ' + data.data )
+            if data.data == "location one":
+                self.np=0
+                self.detected=2
+            elif data.data == "location two":
+                self.np=1
+                self.detected=2
+            elif data.data == "location three":
+                self.np=2
+                self.detected=2
+            elif data.data == "location four":
+                self.np=3
+                self.detected=2
+             
+
     def performTask(self):
-	#TODO: Task1
         speak('Executing '+ type(self).__name__)
+        speak('Waiting for voice commands sir!')
+        #
+        self.voice = subprocess.Popen('roslaunch pocketsphinx robocup.launch', shell=True, preexec_fn=os.setsid)
+        rospy.sleep(4)
+        self.voiceFeedback =  rospy.Subscriber("/recognizer/output", String, self.callbackVoice)
+        #rospy.sleep(30)
+        self.detected=1
+        self.thresh = 0
+
+
+        while(self.detected==1 and self.thresh < 30) :
+            print 'In sound loop'
+            rospy.sleep(1)
+            self.thresh = self.thresh +1
+
+        self.voiceFeedback.unregister()
+        os.killpg(self.voice.pid, signal.SIGTERM)
+        mp.movePoint(self.np)
+
         return 1
 
     def execute(self, userdata):
@@ -160,20 +226,20 @@ class Task1(smach.State):
 
 
 
-class Task2(smach.State):
+class Task1(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['TaskCompleted','TaskFailed','Error'])
 
         self.doJoy=1
 
     def callbackJoy(self,data):
-        print data.buttons[4]
+        print 'Button:' + str(data.buttons[4])
         if(data.buttons[4] == 1) :
             print 'data button 4 1'		
             self.doJoy= 2
             self.joysub.unregister()
             self.processJoy.stop()
-            print self.processJoy.is_alive()
+            print 'Is Alive: ' + str(self.processJoy.is_alive())
         rospy.loginfo(rospy.get_name()+ str(data.axes))
         t = Twist();
         t.linear.x = data.axes[1] / 10;
@@ -182,6 +248,7 @@ class Task2(smach.State):
 
     def performTask(self):
         speak('Executing '+ type(self).__name__)
+        speak('I am giving my control to you. Now you can move me around with joystick.')
 
         package = 'joy'
         executable = 'joy_node'
@@ -195,6 +262,7 @@ class Task2(smach.State):
         while(self.doJoy==1) :
             rospy.sleep(5)
         return 1
+
 
     def execute(self, userdata):
         rospy.loginfo('Executing '+ type(self).__name__)
@@ -212,14 +280,15 @@ class Task3(smach.State):
         smach.State.__init__(self, outcomes=['TaskCompleted','TaskFailed','Error'])
     def performTask(self):
         speak('Executing '+ type(self).__name__)
+        speak('I am in visual servoing mode. I will detect and follow the tags.')
         #TODO: Try catch and then handel error
         self.procServo = subprocess.Popen('roslaunch visp_auto_tracker turtletrack.launch', shell=True, preexec_fn=os.setsid)
         self.procVisp = subprocess.Popen('roslaunch demo_pioneer myservo.launch', shell=True, preexec_fn=os.setsid)
-        print self.procServo.pid
-        print self.procVisp.pid
-        self.pS = psutil.Process(self.procServo.pid)
-        self.pV = psutil.Process(self.procVisp.pid)
-        rospy.sleep(30)
+        #print self.procServo.pid
+        #print self.procVisp.pid
+        #self.pS = psutil.Process(self.procServo.pid)
+        #self.pV = psutil.Process(self.procVisp.pid)
+        rospy.sleep(60)
         #self.procServo.kill()
         #self.procVisp.kill()
         #self.pS.kill()
@@ -243,24 +312,42 @@ class Task4(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['TaskCompleted','TaskFailed','Error'])
         self.clientMSG = FRClientGoal()
-        self.clientMSG.order_id = 1
-        self.clientMSG.order_argument = "none"
+        self.clientMSG.order_id = 0
+        self.clientMSG.order_argument = "none" # "none"
+        self.detected=1
+        self.thresh = 0
 
-     def callbackFeedback(self,data):
-        print data.feedback.names[0]
+
+    def callbackFeedback(self,data):
+        print 'Names:' + data.result.names[0]
+        if data.result.names[0] is not None:
+            speak("I have found you " + data.result.names[0])
+            self.detected=2
+
 
     def performTask(self):
         speak('Executing '+ type(self).__name__)
-        self.procServ = subprocess.Popen('rosrun face_recognition Fserver _confidence_value:=0.5', shell=True, preexec_fn=os.setsid)
+        speak('Face recognition activated. Let me see if I can recognize you!')
+        self.procServ = subprocess.Popen('rosrun face_recognition Fserver _confidence_value:=0.7', shell=True, preexec_fn=os.setsid)
         self.procClient = subprocess.Popen('rosrun face_recognition Fclient', shell=True, preexec_fn=os.setsid)
-        print self.procServ.pid
-        print self.procClient.pid
-        self.ClientGoal = rospy.Publisher('/face_recognition/fr_order', FRClientGoal)
+        #print self.procServ.pid
+        #print self.procClient.pid
+        rospy.sleep(4)
+        self.ClientGoal = rospy.Publisher('/fr_order', FRClientGoal,latch=True)
+        print self.clientMSG
         self.ClientGoal.publish(self.clientMSG)
-        self.faceFeedback =  rospy.Subscriber("/face_recognition/feedback", FaceRecognitionActionFeedback, self.callbackFeedback)
-        self.pS = psutil.Process(self.procServ.pid)
-        self.pC = psutil.Process(self.procClient.pid)
-        rospy.sleep(30)
+        self.faceFeedback =  rospy.Subscriber("/face_recognition/result", FaceRecognitionActionResult, self.callbackFeedback)
+        #rospy.sleep(30)
+        self.detected=1
+        self.thresh = 0
+
+
+        while(self.detected==1 and self.thresh < 30) :
+            rospy.sleep(1)
+            self.thresh = self.thresh +1
+
+
+        self.faceFeedback.unregister()
         os.killpg(self.procClient.pid, signal.SIGTERM)
         os.killpg(self.procServ.pid, signal.SIGTERM)
         return 1
@@ -311,6 +398,7 @@ class Location1(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo('Executing '+ type(self).__name__)
+        speak('Moving to '+ type(self).__name__)
         rospy.sleep(1)
         val = self.moveToPosition()
         if val == 1 :
@@ -331,6 +419,7 @@ class Location2(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo('Executing '+ type(self).__name__)
+        speak('Moving to '+ type(self).__name__)
         rospy.sleep(1)
         val = self.moveToPosition()
         if val == 1 :
@@ -350,6 +439,7 @@ class Location3(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo('Executing '+ type(self).__name__)
+        speak('Moving to '+ type(self).__name__)
         rospy.sleep(1)
         val = self.moveToPosition()
         if val == 1 :
@@ -369,6 +459,7 @@ class Location4(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo('Executing '+ type(self).__name__)
+        speak('Moving to '+ type(self).__name__)
         rospy.sleep(1)
         val = self.moveToPosition()
         if val == 1 :
@@ -401,7 +492,7 @@ class MoveBasePoints():
         # Create a list to hold the waypoint poses
 
 
-	oy=2.7;
+	    oy=2.7;
         ox = 1;
         # Append each of the four waypoints to the list.  Each waypoint
         # is a pose consisting of a position and orientation in the map frame.
@@ -515,7 +606,7 @@ class MoveBasePoints():
 # - StartRobot - outcomes=['StartPatrol']
 # - StartPatrol - outcomes=['DetectTag']
 # - DetectTag - outcomes=['Task1', 'Task2', 'Task3', 'Task4', 'Error', 'FailDetectTag']
-# - Error - outcomes=['StartPatrol']
+# - Error - outcomes=['StartPatrol', 'STOP']
 # - FailDetectTag - outcomes=['TaskCompleted', 'Error']
 # - TaskCompleted - outcomes=['Location1', 'Location2', 'Location3', 'Location4', 'Error']
 # - TaskFailed - outcomes=['TaskCompleted','Error']
@@ -533,24 +624,25 @@ class MoveBasePoints():
 # main
 def speak(s):
     #absolute path for this
-    soundhandle = SoundClient()
-    rospy.sleep(1)
-    print s
-    soundhandle.say(s,'voice_kal_diphone')
+    print 'Word: ' + s
+    #soundhandle.say(s,'voice_kal_diphone')
     #may be loop with readline so there is a pause at every line.
-    rospy.sleep(1)
+    rospy.sleep(3)
 
 def tagDetected(data):
-    print data.id
+    #print data.id
     global currTask
-    currTask = data.id
+    if data.id in [0,1,2,3]:
+        currTask = data.id
+        if currTask is not data.id:
+            print 'Tag ID - Current Task Assign: ' + str(data.id)
 
 def main():
     rospy.init_node('asma')
     global mp
     mp = MoveBasePoints()
     # Create a SMACH state machine
-    sm = smach.StateMachine(outcomes=['Stop'])
+    sm = smach.StateMachine(outcomes=['STOP'])
 
     rospy.Subscriber("visualization_marker", Marker, tagDetected)
 
@@ -573,7 +665,8 @@ def main():
 				            'FailDetectTag':'FailDetectTag'})
 
         smach.StateMachine.add('Error', Error(),
-                               transitions={'StartPatrol':'StartPatrol'})
+                               transitions={'StartPatrol':'StartPatrol',
+                                            'STOP':'STOP'})
 
         smach.StateMachine.add('FailDetectTag', FailDetectTag(),
                                transitions={'TaskCompleted':'TaskCompleted',
